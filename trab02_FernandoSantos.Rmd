@@ -1,0 +1,239 @@
+---
+title: "Trab 02 - Análise Multivariada"
+author: "Fernando Pires dos Santos"
+subtitle: Aplicação Análise Fatorial
+output:
+  html_notebook:
+    theme: flatly
+    highlight: textmate
+    code_folding: hide
+    toc: yes
+    number_sections: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: yes
+      smooth_scroll: no
+      number_sections: yes
+  html_document:
+    toc: yes
+    toc_depth: '3'
+    df_print: paged
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r, echo=FALSE, warning=FALSE}
+options(scipen=999)
+options(warn = 0)
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(kableExtra)
+library(psy)
+```
+
+# Introdução
+
+O dataset a seguir será analisado pelo método conhecido como Análise Fatorial. A seguir um breve resumo sobre o Método:
+
+
+A análise fatorial tem como objetivo reduzir as características de um conjunto de variáveis. É um método que avalia relações entre variáveis, identificando a estrutura latente de relações entre elas, e faz uso dessas relações para estabelecer fatores que agrupam variáveis altamente correlacionadas entre si. Desse modo, fornece um mecanismo de redução de dimensionalidade dos dados, possibilitando o uso desses fatores com o objetivo de explorar os dados, ou em outras técnicas multivariadas. 
+
+
+
+## Resumo do dataset
+
+Nesse trabalho, as unidades de análises serão as cinco variáveis descritas a seguir:
+
+>Medidas de textura de um alimento "pastry" - massa.<br>
+>Origem: Dados simulados, mas com características de um problema industrial.<br> 
+>Dimensão: 50 linhas e 5 colunas<br> 
+>Fonte: Kevin Dunn;(16/5/2022)<br>
+
+>**Oil:** *(Óleo)porcentagem de óleo na massa*<br>
+>**Density:** *(Densidade) a densidade do produto (quanto maior o número, mais denso o produto)*<br>
+>**Crispy:** *(Crocante) uma medida de crocância, em uma escala de 7 a 15, sendo 15 mais crocante.*<br>
+>**Fracture:** *(Fratura) o ângulo, em graus, através do qual a massa pode ser dobrada lentamente antes de fraturar.*<br>
+>**Hardness:** *(Dureza) uma ponta afiada é usada para medir a quantidade de força necessária antes que ocorra a ruptura.*
+
+
+Ao longo do relatório, as variáveis poderão ser referidas por seu nome ou sua descrição.
+
+Um ponto importante a se destacar é que o conjunto de dados analisado nesse trabalho tem um número pequeno de variáveis, sob o ponto de vista da análise fatorial. De acordo com Hair:
+
+*"Se um estudo está sendo planejado para revelar estrutura fatorial, esforce-se para ter pelo menos cinco variáveis para cada fator proposto."*
+
+
+# Dados
+## Tabela com os dados
+```{r}
+dt = read.csv2("food.csv", sep =';', header=T)
+#dt = rename(dt,massa = X,)
+head(dt,10)
+```
+
+## Estrutura dos dados
+
+```{r}
+str(dt)
+```
+
+
+# Análise exploratória dos dados e verificação das suposições
+
+Os resultados abaixo exibem as estatísticas descritivas calculadas para as variáveis consideradas:
+
+```{r}
+dt2 = dt
+dt2$X = NULL
+summary(dt2)
+```
+
+```{r}
+hist(dt$Oil, main = "Oil", xlab = "Oil", ylab="Frequência")
+hist(dt$Density, main = "Density", xlab = "Density", ylab="Frequência")
+hist(dt$Crispy, main="Crispy", xlab = "Crispy", ylab="Frequência")
+hist(dt$Fracture, main="Fracture", xlab = "Fracture", ylab="Frequência")
+hist(dt$Hardness, main="Hardness", xlab = "Hardness", ylab="Frequência")
+```
+
+Os histogramas mostram a distruibuição dos dados.
+Abaixo serão apresentados testes de normalidade.
+
+```{r}
+shapiro.test(dt$Oil)
+shapiro.test(dt$Density)
+shapiro.test(dt$Crispy)
+shapiro.test(dt$Fracture)
+shapiro.test(dt$Hardness)
+```
+Apenas a variável Crispy não passou no teste de normalidade ao nível de significância de 0,05. 
+
+De acordo com Hair, as seguintes suposições para as variáveis sob estudo seriam necessárias para a análise fatorial:
+
+- Normalidade
+- Homocedasticidade
+- Linearidade
+- Multicolinearidade
+
+Ainda segundo o autor, 
+
+*"de um ponto de vista estatístico, os desvios da normalidade, da homocedasticidade e da linearidade aplicam-se apenas porque eles diminuem as correlações observadas. Apenas a normalidade é necessária se um teste estatístico é aplicado para a significância dos fatores, mas esses testes raramente são usados. Na verdade, um pouco de multicolinearidade é desejável, pois o objetivo é identificar conjuntos de variáveis inter-relacionadas."*
+
+Desse modo, em termos de verificação das suposições, esse trabalho terá como foco a verificação de medidas gerais de intercorrelação entre as variáveis, apresentada na análise a seguir.
+
+
+```{r, warning = FALSE}
+library(Hmisc)
+rcorr(as.matrix(dt2))
+
+library(corrplot)
+corrplot(cor(dt2))
+```
+
+A matriz de correlação de Pearson entre as variáveis consideradas (e seus respectivos p-valores) mostra que todas as variáveis têm correlação significativa com pelo menos outra. Grande parte das correlações são maiores (em módulo) do que 0.3, valor considerado como referência por Hair para que a análise fatorial seja apropriada. 
+
+Essa **multicolinearidade** observada é desejável (uma vez que nosso objetivo é realizar uma análise fatorial), pois ela garante que as variáveis são suficientemente correlacionadas umas com as outras para produzir fatores representativos.
+
+A fim de determinar, de modo mais objetivo, a adequação da análise fatorial examinando-se a matriz de correlação inteira, é apresentado a seguir o teste de esfericidade de Bartlett:
+
+```{r warning=FALSE}
+library(psych)
+cortest.bartlett(dt2)
+```
+
+No teste de Bartlett, a estatística de teste é utilizada para examinar a hipótese de que as variáveis não sejam correlacionadas na população. Para os dados considerados, a hipótese nula de que a matriz de correlação da população seja uma matriz identidade é rejeitada por esse teste. A estatística qui-quadrado aproximada é 154.9936, com 10 graus de liberdade, significativa ao nível de 0.05 (p-valor<0,0001).
+
+
+Além do teste de Bartlett, a correlação entre as variáveis pode ser avaliada de modo mais preciso por meio da medida de adequação da amostra (MSA). De acordo com a literatura, valores de MSA devem exceder 0.5 tanto para o teste geral quanto para cada variável individual. Variáveis com MSA < 0.5 devem ser omitidas da análise fatorial uma por vez, sendo aquela com menor valor eliminada a cada vez.
+
+```{r}
+KMO(dt2)
+```
+
+No R, a MSA é calculada por meio da **Kaiser-Meyer-Olkin Measure of Sampling Adequacy (KMO)**. O valor de KMO geral é de 0.71, e tem-se também os valores individuais para cada item, os quais, para as cinco variáveis consideradas, variaram entre 0.43 (para Hardness) e 0.82 (para Oil). 
+
+O KMO de todas as variáveis excedeu a referência de 0.5, exceto para Hardness. Embora tenha ficado abaixo  desse limiar, a variável Harness (assim como as demais) será considerada na análise fatorial, por seu valor ter ficado próximo (embora ligeiramente abaixo) dessa referência. Desse modo, será dado seguimento ao estudo, por meio da Análise Fatorial.
+
+
+# Análise Fatorial
+
+## Determinando número de fatores
+
+O dataset possui apenas 5 variáveis. Abaixo alguns testes para descobrir o mínimo de fatores necessários para a análise.
+
+
+Teste para 1 fator:
+
+```{r}
+fa=factanal(dt2, factors = 1, method ="mle")
+fa
+```
+P-Valor baixo, rejeita-se a hipotese de nula de que 1 fator é suficiente.
+
+Teste para 2 fatores:
+```{r}
+fa=factanal(dt2, factors = 2, method ="mle")
+fa
+```
+Não rejeita-se a hipótese de que 2 fatores sejam suficientes, portanto segue-se a análise com 2 fatores.
+
+## Unicidades
+
+Como é possível observar algumas variáveis possuem um ruído bem alto. As medidas abaixo representam a proporção da variabilidade, em cada variável, que não é explicada pela combinação linear dos fatores. 
+
+```{r}
+knitr::kable(t(fa$uniquenesses))%>% kable_styling(position = "center")
+
+#tabela6<- data.frame(fa$uniquenesses) 
+#colnames(tabela6)<-c("Uniqueness")
+#knitr::kable(t(tabela6))%>% kable_styling(position = "center")
+
+```
+
+## Cargas
+
+Contribuição das variáveis originais para os fatores. 
+Como é possível observar o Fator 1 tem alta contribuição negativa das variáveis Oil e Crispy. E alta contribuição positiva das variáveis Density e Fracture. Um especialista com essas informações certamente conseguiria uma boa interpretação para a variável latente. Já o Fator 2 possuem grande contribuição possitiva de Crispy e Hardness, e contribuição negativa de Fracture. Os valores faltantes são baixos e portanto desprezados. 
+
+```{r}
+fa$loadings
+```
+## Comunalidade
+
+Fração da variância total explicada pelos fatores, quanto maior, melhor.
+
+```{r}
+apply(fa$loadings^2,1,sum)
+```
+## Proportion Var, Cumulative var e SS Loadings
+
+Proportion var é a variância explicada por cada fator.
+Cumulative var é o valor acumulado da variância explicada.
+SS Loadings é a soma das cargas ao quadrado, pela regra de Kaiser devemos manter fatores com SS Loadings > 1. 
+
+```{r}
+fa$loadings
+```
+## Scree Plot
+
+Corrobora a utilização de 2 fatores. O segundo fator é o último antes do ponto de inflexão (linha tracejada).
+
+```{r}
+psy::scree.plot(fa$correlation)
+```
+## Estimação Escores
+
+```{r}
+scores = factanal(dt2, factors = 2, method = "mle",scores = "regression")$scores
+dt3= data.frame(dt$X,scores)
+dt3
+```
+```{r}
+ggplot(dt3, aes(x=Factor1, y=Factor2)) + geom_text(alpha=.6, size=3, aes(label=dt.X))
+```
+# Conclusão
+
+O dataset possuia poucas variáveis portanto a Análise Fatorial não conseguiu explicar muito da variância dos dados. Porém foi possível chegar a fatores que possivelmente teriam um significado caso analisados por um especialista da área. O próximo passo seria procurar um especialista. 
